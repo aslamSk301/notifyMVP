@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db/client'
-import { projects, devices, topics } from '@/lib/db/schema'
+import { projects, devices, topics, deviceTopics } from '@/lib/db/schema'
 import { subscribeTokensToTopic } from '@/lib/firebase/admin'
 import { getProjectCredentials } from '@/lib/firebase/credentials-loader'
 import { generateSecureToken } from '@/lib/utils'
@@ -53,19 +53,44 @@ export async function POST(request: NextRequest) {
   // Subscribe via FCM IID API
   const result = await subscribeTokensToTopic(credentials, [fcmToken], topic)
 
-  // Save topic to DB if not exists (for dashboard display)
-  const existingTopic = await db
+  // Save topic + link this device so the dashboard Topics column is not empty.
+  const [existingTopic] = await db
     .select({ id: topics.id })
     .from(topics)
     .where(and(eq(topics.projectId, project.id), eq(topics.name, topic)))
     .limit(1)
 
-  if (existingTopic.length === 0) {
+  let topicId = existingTopic?.id
+  if (!topicId) {
+    topicId = generateSecureToken(16)
     await db.insert(topics).values({
-      id:        generateSecureToken(8),
+      id:        topicId,
       projectId: project.id,
       name:      topic,
-    })
+      type:      'custom',
+    }).onConflictDoNothing()
+
+    const [row] = await db
+      .select({ id: topics.id })
+      .from(topics)
+      .where(and(eq(topics.projectId, project.id), eq(topics.name, topic)))
+      .limit(1)
+    topicId = row?.id ?? topicId
+  }
+
+  const [device] = await db
+    .select({ id: devices.id })
+    .from(devices)
+    .where(and(eq(devices.projectId, project.id), eq(devices.fcmToken, fcmToken)))
+    .limit(1)
+
+  if (device) {
+    await db.insert(deviceTopics).values({
+      id:         generateSecureToken(16),
+      deviceId:   device.id,
+      topicId,
+      assignedBy: 'sdk',
+    }).onConflictDoNothing()
   }
 
   return NextResponse.json({
