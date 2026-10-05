@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { deviceTopics, topics } from '@/lib/db/schema'
 import { authenticateV1Project, v1Json } from '@/lib/api/v1-auth'
+import { systemTopicColumns } from '@/lib/utils/topic-normalizer'
 
 export async function OPTIONS() {
   return v1Json({}, 200)
@@ -58,8 +59,6 @@ export async function GET(req: NextRequest) {
         id: topics.id,
         name: topics.name,
         type: topics.type,
-        category: topics.category,
-        value: topics.value,
         description: topics.description,
         isActive: topics.isActive,
         createdAt: topics.createdAt,
@@ -94,17 +93,20 @@ export async function GET(req: NextRequest) {
       total,
       limit,
       offset,
-      topics: rows.map((t) => ({
+      topics: rows.map((t) => {
+        const meta = systemTopicColumns(t.name, project.appId)
+        return {
         id: t.id,
         name: t.name,
         type: t.type,
-        category: t.category,
-        value: t.value,
+        category: meta.category,
+        value: meta.value,
         description: t.description,
         isActive: t.isActive,
         deviceCount: counts[t.id] ?? 0,
         createdAt: t.createdAt,
-      })),
+        }
+      }),
     })
   } catch (err) {
     return v1Json(

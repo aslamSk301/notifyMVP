@@ -130,10 +130,8 @@ export const topics = sqliteTable('topics', {
   id:          text('id').primaryKey(),
   projectId:   text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   name:        text('name').notNull(),                 // e.g. "all_app_…", "country_in_…"
-  // Production D1 column is `kind` (0004's `type` was never applied).
-  type:        text('kind', { enum: ['system', 'custom'] }).notNull().default('custom'),
-  category:    text('category'),
-  value:       text('value'),
+  // Live D1 column is `type` (not `kind`). No category/value columns.
+  type:        text('type', { enum: ['system', 'custom'] }).notNull().default('custom'),
   description: text('description'),
   isActive:    integer('is_active', { mode: 'boolean' }).notNull().default(true),
   createdAt:   text('created_at').notNull().default(sql`(datetime('now'))`),

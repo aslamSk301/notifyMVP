@@ -48,8 +48,6 @@ async function ensureSystemTopic(
       projectId,
       name,
       type: 'system',
-      category: meta.category,
-      value: meta.value,
       description: meta.description,
       isActive: true,
     })

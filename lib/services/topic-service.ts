@@ -57,7 +57,6 @@ export async function createTopic(input: CreateTopicInput) {
     projectId:   input.projectId,
     name:        input.name,
     type:        input.type ?? 'custom',
-    category:    'custom' as const,
     description: input.description ?? null,
     isActive:    true,
     createdAt:   new Date().toISOString(),
