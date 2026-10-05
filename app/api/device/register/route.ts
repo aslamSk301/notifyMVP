@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db/client'
-import { projects, devices } from '@/lib/db/schema'
+import { projects, devices, deviceTopics } from '@/lib/db/schema'
 import { generateSecureToken } from '@/lib/utils'
 import { countryFromRequest, buildSystemTopicNames } from '@/lib/utils/topic-normalizer'
 import { syncDeviceSystemTopics } from '@/lib/services/topic-sync'
@@ -105,8 +105,35 @@ export async function POST(request: NextRequest) {
       appVersion: appVersion ?? existing?.appVersion,
     }
 
-    // If completely identical to current DB row, skip D1 write completely!
+    // Same device, same attributes: skip the device-row write.
+    // Flutter / RN devices that already have topic rows stay on this path.
+    // A device with zero topic rows (older Android register) gets one backfill.
     if (existing && !topicAttrsChanged && sameUser) {
+      let topicNames = buildSystemTopicNames(project.appId, nextAttrs)
+      const [linked] = await db
+        .select({ id: deviceTopics.id })
+        .from(deviceTopics)
+        .where(eq(deviceTopics.deviceId, targetDbDeviceId))
+        .limit(1)
+
+      if (!linked) {
+        try {
+          topicNames = await syncDeviceSystemTopics({
+            projectId:        project.id,
+            appId:            project.appId,
+            dbDeviceId:       targetDbDeviceId,
+            fcmToken:         activeToken,
+            previousToken:    oldToken,
+            firebaseJsonPath:    project.firebaseJsonPath,
+            firebaseCredentials: project.firebaseCredentials,
+            next:             nextAttrs,
+            previous:         null,
+          })
+        } catch (topicErr) {
+          console.error('[Topics] Backfill failed:', topicErr)
+        }
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Device already registered and up to date',
@@ -115,7 +142,7 @@ export async function POST(request: NextRequest) {
           deviceId,
           platform,
           subscriptionId: targetDbDeviceId,
-          topics: buildSystemTopicNames(project.appId, nextAttrs),
+          topics: topicNames,
           externalUserId: linkedUserId,
         },
       })
