@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db/client'
-import { projects, devices, topics, deviceTopics } from '@/lib/db/schema'
+import { projects } from '@/lib/db/schema'
 import { unsubscribeTokensFromTopic } from '@/lib/firebase/admin'
 import { getProjectCredentials } from '@/lib/firebase/credentials-loader'
 import type { FirebaseCredentials } from '@/lib/firebase/admin'
@@ -50,24 +50,6 @@ export async function POST(request: NextRequest) {
   }
 
   const result = await unsubscribeTokensFromTopic(credentials, [fcmToken], topic)
-
-  const [topicRow] = await db
-    .select({ id: topics.id })
-    .from(topics)
-    .where(and(eq(topics.projectId, project.id), eq(topics.name, topic)))
-    .limit(1)
-
-  const [device] = await db
-    .select({ id: devices.id })
-    .from(devices)
-    .where(and(eq(devices.projectId, project.id), eq(devices.fcmToken, fcmToken)))
-    .limit(1)
-
-  if (topicRow && device) {
-    await db
-      .delete(deviceTopics)
-      .where(and(eq(deviceTopics.deviceId, device.id), eq(deviceTopics.topicId, topicRow.id)))
-  }
 
   return NextResponse.json({
     success:      result.successCount > 0,
