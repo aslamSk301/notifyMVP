@@ -134,9 +134,17 @@ npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0005_fix_campaigns_
 npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0006_add_missing_campaign_columns.sql
 npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0007_fix_devices_missing_columns.sql
 npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0008_better_auth_tables.sql
+npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0009_super_admin_roles.sql
+npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0010_encrypted_firebase_credentials.sql
 ```
 
 `0008` creates Better Auth tables (`ba_user`, `ba_session`, `ba_account`, `ba_verification`). Login will fail without it.
+
+`0009` adds `role` and `status` on `ba_user` (needed for `/dashboard/admin`). It also sets `contact.earnslash@gmail.com` to `superadmin` — change that email in the SQL file before you run it on your own account.
+
+`0010` adds `projects.firebase_credentials`. **Create project fails without it** (the insert includes that column). Firebase JSON uploads are stored here, encrypted.
+
+**Already deployed?** Do not start over. Apply only the files you have not run — see **[DB_MIGRATE.md](./DB_MIGRATE.md)**. Create project fails with `Failed query: insert into "projects" ... firebase_credentials` until `0010` is applied.
 
 If an `ALTER TABLE ... ADD COLUMN` says the column already exists, that file was already applied — continue.
 
@@ -468,7 +476,7 @@ Apply the same SQL files locally with `--local` if you use local D1.
 - [ ] Database `notifymvp-db` created
 - [ ] `database_id` in `wrangler.jsonc`
 - [ ] Binding name `DB`
-- [ ] Migrations `0000` … `0008` applied `--remote`
+- [ ] Migrations `0000` … `0010` applied `--remote` (`0010` = `projects.firebase_credentials`)
 
 **R2 (optional — legacy only)**
 
@@ -499,6 +507,7 @@ Apply the same SQL files locally with `--local` if you use local D1.
 | Login says Google is not configured | `wrangler secret list` — `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `BETTER_AUTH_SECRET` |
 | Google 400 / redirect_uri_mismatch | Exact callback URL in Google Console, including `https` and no trailing slash |
 | Dashboard empty / DB errors | Migrations, especially `0008_better_auth_tables.sql` |
+| Create project shows `Failed query: insert into "projects" ... firebase_credentials` | Migration `0010_encrypted_firebase_credentials.sql` was not applied. Run it `--remote`, then retry. No redeploy needed. |
 | “No Firebase credentials” | Upload Firebase JSON on the project card (D1). Legacy: R2 binding only if `firebase_json_path` still set |
 | Devices register but Topics = — | Open the app once after a successful deploy; register writes `device_topics` |
 | Worker URL works, custom domain does not | Update `NEXT_PUBLIC_APP_URL` + `BETTER_AUTH_URL` + Google origins |

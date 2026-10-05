@@ -6,7 +6,7 @@ Clone it. Deploy it on **your** Cloudflare account. Plug in **your** Firebase pr
 
 If this is useful, **star the repo** — it is the only “pricing page” we have.
 
-[GitHub](https://github.com/aslamSk301/notifyMVP) · [Deploy on Cloudflare](./DEPLOY.md) · [MIT License](./LICENSE) · [LinkedIn](https://www.linkedin.com/in/aslam-shahmadar-editbysk/)
+[GitHub](https://github.com/aslamSk301/notifyMVP) · [Deploy on Cloudflare](./DEPLOY.md) · [Upgrade an existing database](./DB_MIGRATE.md) · [MIT License](./LICENSE) · [LinkedIn](https://www.linkedin.com/in/aslam-shahmadar-editbysk/)
 
 ---
 
