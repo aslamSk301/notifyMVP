@@ -63,7 +63,7 @@ export default async function DevicesPage({
       ) : (
         <>
           <div className="overflow-x-auto rounded-lg border border-[var(--border)]">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[1080px] text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] bg-[var(--muted)]/50">
                   {['Platform', 'Device', 'OS', 'App Version', 'Project', 'Topics', 'Status', 'Last Active'].map((h) => (
@@ -117,8 +117,12 @@ export default async function DevicesPage({
                       {device.appVersion ?? '—'}
                     </td>
 
-                    <td className="px-4 py-3">
-                      <Badge variant="outline" className="text-xs">
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <Badge
+                        variant="outline"
+                        title={device.projectName}
+                        className="whitespace-nowrap px-2.5 py-1 text-xs font-medium"
+                      >
                         {device.projectName}
                       </Badge>
                     </td>
