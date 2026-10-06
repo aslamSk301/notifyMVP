@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     const conditions = [eq(topics.projectId, project.id)]
 
     if (type === 'system' || type === 'custom') {
-      conditions.push(eq(topics.type, type))
+      conditions.push(eq(topics.kind, type))
     }
     if (activeParam === 'true') {
       conditions.push(eq(topics.isActive, true))
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       .select({
         id: topics.id,
         name: topics.name,
-        type: topics.type,
+        type: topics.kind,
         description: topics.description,
         isActive: topics.isActive,
         createdAt: topics.createdAt,

@@ -130,8 +130,9 @@ export const topics = sqliteTable('topics', {
   id:          text('id').primaryKey(),
   projectId:   text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   name:        text('name').notNull(),                 // e.g. "all_app_…", "country_in_…"
-  // Live D1 column is `type` (not `kind`). No category/value columns.
-  type:        text('type', { enum: ['system', 'custom'] }).notNull().default('custom'),
+  // Production D1 stores this as `kind`; expose the real column name so
+  // topic creation and system-topic sync do not silently fail on insert.
+  kind:        text('kind', { enum: ['system', 'custom'] }).notNull().default('custom'),
   description: text('description'),
   isActive:    integer('is_active', { mode: 'boolean' }).notNull().default(true),
   createdAt:   text('created_at').notNull().default(sql`(datetime('now'))`),

@@ -26,7 +26,8 @@ export async function getTopics(projectId: string) {
     .where(and(eq(topics.projectId, projectId), eq(topics.isActive, true)))
     .orderBy(desc(topics.createdAt))
 
-  return rows
+  // Keep the public service contract as `type` while D1 stores `kind`.
+  return rows.map(({ kind, ...topic }) => ({ ...topic, type: kind }))
 }
 
 /** Create a new topic configuration */
@@ -47,23 +48,23 @@ export async function createTopic(input: CreateTopicInput) {
   if (existing) {
     if (!existing.isActive) {
       await db.update(topics).set({ isActive: true }).where(eq(topics.id, existing.id))
-      return { ...existing, isActive: true }
+      return { ...existing, isActive: true, type: existing.kind }
     }
-    return existing
+    return { ...existing, type: existing.kind }
   }
 
   const newTopic = {
     id:          generateSecureToken(16),
     projectId:   input.projectId,
     name:        input.name,
-    type:        input.type ?? 'custom',
+    kind:        input.type ?? 'custom',
     description: input.description ?? null,
     isActive:    true,
     createdAt:   new Date().toISOString(),
   }
 
   await db.insert(topics).values(newTopic)
-  return newTopic
+  return { ...newTopic, type: newTopic.kind }
 }
 
 /** Soft delete / deactivate a topic */

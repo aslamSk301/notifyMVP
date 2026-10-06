@@ -47,7 +47,7 @@ async function ensureSystemTopic(
       id,
       projectId,
       name,
-      type: 'system',
+      kind: 'system',
       description: meta.description,
       isActive: true,
     })
