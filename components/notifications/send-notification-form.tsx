@@ -33,6 +33,7 @@ const PLATFORM_TARGETS = [
 
 export function SendNotificationForm({ projects, topics = [], segments = [] }: SendNotificationFormProps) {
   const router = useRouter()
+  const [projectId, setProjectId] = useState(projects[0]?.id ?? '')
   const [target, setTarget] = useState('all')
   const [formNonce, setFormNonce] = useState(0)
   const [titlePreview, setTitlePreview] = useState('')
@@ -85,10 +86,14 @@ export function SendNotificationForm({ projects, topics = [], segments = [] }: S
     label: `🎯 Segment: ${s.name}`,
   }))
 
-  const topicTargets = topics.map((t) => ({
-    value: `topic:${t.name}`,
-    label: t.description ? t.description : `Topic: ${t.name}`,
-  }))
+  // Topics are tenant/project scoped. Never offer a topic that belongs to a
+  // different selected project in the notification composer.
+  const topicTargets = topics
+    .filter((t) => t.projectId === projectId)
+    .map((t) => ({
+      value: `topic:${t.name}`,
+      label: t.description ? t.description : `Topic: ${t.name}`,
+    }))
 
   const allTargets = [...PLATFORM_TARGETS, ...segmentTargets, ...topicTargets]
   const isRich = Boolean(imageUrl.trim())
@@ -109,7 +114,16 @@ export function SendNotificationForm({ projects, topics = [], segments = [] }: S
           {/* Project */}
           <div className="space-y-1.5">
             <Label htmlFor="projectId">Project</Label>
-            <Select id="projectId" name="projectId" required placeholder="Select a project">
+            <Select
+              id="projectId"
+              name="projectId"
+              required
+              value={projectId}
+              onChange={(e) => {
+                setProjectId(e.target.value)
+                setTarget('all')
+              }}
+            >
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
