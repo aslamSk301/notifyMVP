@@ -109,6 +109,21 @@ export async function POST(request: NextRequest) {
     // Flutter / RN devices that already have topic rows stay on this path.
     // A device with zero topic rows (older Android register) gets one backfill.
     if (existing && !topicAttrsChanged && sameUser) {
+      // Registration happens at app launch. Refresh activity even on the
+      // fast path so the scheduled dormant-device cleanup never deactivates a
+      // user who is actively opening the app.
+      await db
+        .update(devices)
+        .set({
+          status: 'active',
+          subscriptionStatus: 'subscribed',
+          lastOpen: now,
+          lastActive: now,
+          inactiveAt: null,
+          updatedAt: now,
+        })
+        .where(eq(devices.id, targetDbDeviceId))
+
       let topicNames = buildSystemTopicNames(project.appId, nextAttrs)
       const [linked] = await db
         .select({ id: deviceTopics.id })
@@ -170,7 +185,9 @@ export async function POST(request: NextRequest) {
             sdkVersion:         sdkVersion     ?? undefined,
             subscriptionStatus: 'subscribed',
             status:             'active',
+            lastOpen:            now,
             lastActive:         now,
+            inactiveAt:          null,
             updatedAt:          now,
           })
           .where(and(eq(devices.projectId, project.id), eq(devices.deviceId, deviceId)))
@@ -193,6 +210,7 @@ export async function POST(request: NextRequest) {
           subscriptionStatus:     'subscribed',
           notificationPermission: 'granted',
           status:                 'active',
+          lastOpen:               now,
           lastActive:             now,
           createdAt:              now,
           updatedAt:              now,

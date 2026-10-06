@@ -19,7 +19,13 @@
     "NEXT_PUBLIC_APP_URL": "https://notify.yourdomain.com"
   },
 
-  "main": ".open-next/worker.js",
+  // The custom wrapper preserves OpenNext's fetch handler and adds the daily
+  // 90-day dormant-device cleanup.
+  "main": "custom-worker.ts",
+
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  },
 
   "assets": {
     "directory": ".open-next/assets",
