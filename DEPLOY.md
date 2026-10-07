@@ -15,7 +15,7 @@ If this helped your startup, **star the repo**: [github.com/aslamSk301/notifyMVP
 | **Cloudflare Worker** | Dashboard + public device/register + send APIs |
 | **D1** | SQLite database (users, projects, devices, topics) — **not** a bucket |
 | **R2** (optional) | Legacy only: old installs kept Firebase JSON in a bucket; new uploads go to **D1** |
-| **Admin env login + Google** | Dashboard auth: `ADMIN_EMAIL`/`ADMIN_PASSWORD` + Google (Better Auth) |
+| **Dashboard login** (optional) | Built-in env admin + Google — configure when you need `/login` ([README](./README.md#dashboard-sign-in)) |
 | **Firebase FCM** | Actual push delivery (topics + tokens) |
 
 ---
@@ -25,8 +25,9 @@ If this helped your startup, **star the repo**: [github.com/aslamSk301/notifyMVP
 1. A [Cloudflare](https://dash.cloudflare.com/sign-up) account
 2. Node.js 20+ and npm
 3. [Wrangler](https://developers.cloudflare.com/workers/wrangler/install-and-update/) (`npx wrangler` is enough)
-4. A free [Google Cloud](https://console.cloud.google.com/) OAuth client (Web application)
-5. A [Firebase](https://console.firebase.google.com/) project with Cloud Messaging enabled, plus a **service account JSON**
+4. A [Firebase](https://console.firebase.google.com/) project with Cloud Messaging enabled, plus a **service account JSON**
+
+Optional (only if you want **Continue with Google** on the dashboard): a [Google Cloud](https://console.cloud.google.com/) OAuth Web client — setup is in [README → Dashboard sign-in](./README.md#dashboard-sign-in), not required for first deploy.
 
 Optional: a custom domain on Cloudflare.
 
@@ -138,7 +139,7 @@ npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0009_super_admin_ro
 npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0010_encrypted_firebase_credentials.sql
 ```
 
-`0008` creates Better Auth tables (`ba_user`, `ba_session`, `ba_account`, `ba_verification`). Login will fail without it.
+`0008` creates auth tables (`ba_user`, `ba_session`, `ba_account`, `ba_verification`) used by the built-in dashboard login. Skip only if you replace dashboard auth entirely in your fork.
 
 `0009` adds `role` and `status` on `ba_user` (needed for `/dashboard/admin`). It also sets `contact.earnslash@gmail.com` to `superadmin` — change that email in the SQL file before you run it on your own account.
 
@@ -150,91 +151,24 @@ If an `ALTER TABLE ... ADD COLUMN` says the column already exists, that file was
 
 ---
 
-## 6. Authentication — what to put where
+## 6. Dashboard authentication (skip on first deploy if you want)
 
-Dashboard login uses two paths:
+**Deploy path:** D1 + migrations + `npm run deploy` do **not** require Google OAuth or a long auth checklist. You can ship the Worker first, then lock down `/login` when you are ready.
 
-| Path | Who | What you configure |
-|---|---|---|
-| **Env admin** | Platform owner | `ADMIN_EMAIL` + `ADMIN_PASSWORD` on `/login` (checked by `/api/auth/env-login`; session cookie via `JWT_SECRET`) |
-| **Google** | Other users | Google OAuth + `BETTER_AUTH_SECRET` (Better Auth social sign-in / register) |
+The repo ships a **default** dashboard auth stack (env owner login, optional Google, admin panel). You can use it as-is, turn parts on/off with secrets, or **replace it in your fork** (e.g. Cloudflare Access, your own IdP) — your call.
 
-Better Auth **requires** `BETTER_AUTH_SECRET` in production. Google credentials are **recommended** so teammates can use **Continue with Google**; without them, only env admin login works.
+**Where the details live:** all secret names, Google redirect URLs, team onboarding, and production vs local env rules are in **[README → Dashboard sign-in](./README.md#dashboard-sign-in)**. Follow that section when you configure login; this deploy guide does not repeat Better Auth / OAuth steps.
 
-### 6a. Admin email login (env)
+**Smallest path to open the dashboard after deploy** (owner only, no Google):
 
 ```bash
 npx wrangler secret put ADMIN_EMAIL
 npx wrangler secret put ADMIN_PASSWORD   # minimum 6 characters
-npx wrangler secret put JWT_SECRET       # openssl rand -base64 32
+npx wrangler secret put JWT_SECRET         # openssl rand -base64 32
+npx wrangler secret put BETTER_AUTH_SECRET # openssl rand -base64 32 — required by the auth layer even without Google
 ```
 
-Use the same email/password on the login form. This does not delete existing Google users in D1.
-
-### 6b. Generate a Better Auth secret
-
-```bash
-openssl rand -base64 32
-```
-
-Then store it on the Worker (do not commit this):
-
-```bash
-npx wrangler secret put BETTER_AUTH_SECRET
-```
-
-Paste the random string when prompted.
-
-### 6c. Google Cloud OAuth
-
-1. Open [Google Cloud Console](https://console.cloud.google.com/) → your project (or create one).
-2. **APIs & Services → OAuth consent screen** — External, app name e.g. `NotifyMVP`, your email.
-3. **APIs & Services → Credentials → Create credentials → OAuth client ID → Web application**.
-4. Authorized JavaScript origins:
-
-   ```text
-   http://localhost:3000
-   https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev
-   https://your-custom-domain.com
-   ```
-
-5. Authorized redirect URIs (add **all** you will use):
-
-   ```text
-   http://localhost:3000/api/auth/google/callback
-   http://localhost:3000/api/auth/callback/google
-   https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/api/auth/google/callback
-   https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/api/auth/callback/google
-   https://your-custom-domain.com/api/auth/google/callback
-   https://your-custom-domain.com/api/auth/callback/google
-   ```
-
-   `/api/auth/google/callback` is the custom Google route. `/api/auth/callback/google` is Better Auth's default. Add both so login does not 400.
-
-6. Copy the Client ID and Client Secret into Worker secrets:
-
-```bash
-npx wrangler secret put GOOGLE_CLIENT_ID
-npx wrangler secret put GOOGLE_CLIENT_SECRET
-```
-
-### 6d. App URL for auth cookies
-
-```bash
-npx wrangler secret put BETTER_AUTH_URL
-```
-
-Use the same origin as `NEXT_PUBLIC_APP_URL` (no trailing slash), e.g. `https://notify.yourdomain.com`.
-
-### 6e. Optional secrets
-
-| Secret | Required? | What it is |
-|---|---|---|
-| `SUPER_ADMIN_EMAILS` | Recommended | Comma-separated emails for `/dashboard/admin` |
-| `BETTER_AUTH_API_KEY` | No | Better Auth dashboard plugin (`ba_...`) if you use it |
-| `RESEND_API_KEY` / `EMAIL_FROM` | No | Only if you later wire transactional email |
-
-**Adding users:** Super admins can create email/password users in **`/dashboard/admin`** without changing env. See [README — Dashboard sign-in](./README.md#dashboard-sign-in).
+Set `BETTER_AUTH_URL` to the same origin as `NEXT_PUBLIC_APP_URL` when you use a custom domain (see README).
 
 ---
 
@@ -250,31 +184,18 @@ Use the same origin as `NEXT_PUBLIC_APP_URL` (no trailing slash), e.g. `https://
 | **Public config** | `wrangler.jsonc` → `vars` | Committed in repo; applied on `npm run deploy` (e.g. `NEXT_PUBLIC_APP_URL`) |
 | **Local dev only** | `.env`, `.env.local` | Used by `next dev` / local build. **Never uploaded** by `npm run deploy`. |
 
-### Secret names (production login)
+### Secret names (dashboard login)
 
-Set these with `npx wrangler secret put <NAME>` (run from `my-app/` after `npx wrangler login`):
-
-| Secret | Required for | Notes |
-|---|---|---|
-| `BETTER_AUTH_SECRET` | Google login (Better Auth) | `openssl rand -base64 32` |
-| `JWT_SECRET` | Env admin login session cookie | `openssl rand -base64 32` |
-| `ADMIN_EMAIL` | Owner email/password login | Same email as existing Google user → same D1 account |
-| `ADMIN_PASSWORD` | Owner login | Min 6 characters; login form must match exactly |
-| `GOOGLE_CLIENT_ID` | Google button | Optional only if you skip Google entirely |
-| `GOOGLE_CLIENT_SECRET` | Google button | Pair with client ID |
-| `BETTER_AUTH_URL` | Auth cookies | Same origin as site, no trailing slash |
-| `SUPER_ADMIN_EMAILS` | `/dashboard/admin` | Comma-separated emails; recommended |
-
-Optional: `BETTER_AUTH_API_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`.
+Full table and Google OAuth setup: **[README → Dashboard sign-in](./README.md#dashboard-sign-in)**. Set secrets with `npx wrangler secret put <NAME>` from `my-app/`.
 
 ### When to run what
 
 **A) First time on Cloudflare (full setup)**
 
 1. D1 create + migrations (sections 2–5 above).
-2. Set **all** required secrets (section 6 + table above) via `wrangler secret put`.
-3. `npm run deploy`.
-4. Open Worker URL → `/login` → test env admin and/or Google.
+2. `npm run deploy`.
+3. When you need the dashboard, set login secrets (section 6 + [README](./README.md#dashboard-sign-in)).
+4. Open Worker URL → `/login`.
 
 **B) Code or UI change only**
 
@@ -298,7 +219,7 @@ No redeploy required; the Worker picks up the new secret on the next request. (R
 
 1. Update `wrangler.jsonc` → `vars.NEXT_PUBLIC_APP_URL`.
 2. `npx wrangler secret put BETTER_AUTH_URL` (same URL).
-3. Update Google OAuth redirect URIs in Google Cloud Console.
+3. If you use Google login, update OAuth redirect URIs (see [README](./README.md#dashboard-sign-in)).
 4. `npm run deploy`.
 
 ### Common mistakes (avoid)
@@ -347,9 +268,8 @@ Cloudflare Dashboard → **Workers & Pages** → `notifymvp` → **Settings → 
 Then:
 
 1. Set `vars.NEXT_PUBLIC_APP_URL` to `https://notify.yourdomain.com`
-2. `npx wrangler secret put BETTER_AUTH_URL` → same URL
-3. Add that origin + both callback URLs in Google OAuth
-4. `npm run deploy` again
+2. `npx wrangler secret put BETTER_AUTH_URL` → same URL (if using built-in dashboard login)
+3. `npm run deploy` again
 
 ---
 
@@ -437,18 +357,7 @@ On register, the backend subscribes the FCM token to system topics (`all_…`, `
 cp .env.local.example .env.local
 ```
 
-Fill at least:
-
-```env
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-BETTER_AUTH_URL=http://localhost:3000
-BETTER_AUTH_SECRET=a-long-random-string-at-least-32-chars
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-CLOUDFLARE_ACCOUNT_ID=...
-CLOUDFLARE_D1_DATABASE_ID=...
-CLOUDFLARE_API_TOKEN=...   # D1 Edit
-```
+Fill at least `NEXT_PUBLIC_APP_URL` and Cloudflare D1 vars (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_D1_DATABASE_ID`, `CLOUDFLARE_API_TOKEN`). For dashboard login locally, copy the auth keys from **[README → Dashboard sign-in](./README.md#dashboard-sign-in)**.
 
 `CLOUDFLARE_*` is only for `next dev` talking to remote D1 over HTTP. For bindings that match production:
 
@@ -468,8 +377,8 @@ Apply the same SQL files locally with `--local` if you use local D1.
 
 - [ ] Worker name `notifymvp` (or change `wrangler.jsonc` `name`)
 - [ ] `nodejs_compat` + `compatibility_date` already in config
-- [ ] Secrets: `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_URL`
 - [ ] Var: `NEXT_PUBLIC_APP_URL`
+- [ ] Dashboard login secrets (when needed): see [README](./README.md#dashboard-sign-in)
 
 **D1**
 
@@ -486,12 +395,6 @@ Apply the same SQL files locally with `--local` if you use local D1.
 **Firebase credentials**
 
 - [ ] Service account JSON uploaded from the dashboard (stored encrypted in D1)
-
-**Google Cloud**
-
-- [ ] OAuth Web client
-- [ ] Consent screen configured
-- [ ] Redirect URIs for Worker URL + localhost (both callback paths)
 
 **Firebase**
 

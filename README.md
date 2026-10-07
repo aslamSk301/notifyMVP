@@ -29,7 +29,7 @@ No vendor lock on the notification SaaS. You already have Cloudflare and Firebas
 - Register Android / iOS / Flutter / React Native devices
 - System FCM topics: all users, OS, country, language, app version (major + exact)
 - Dashboard: send to all, platform, topic, or a single external user id
-- **Dashboard sign-in:** env-based admin email/password + Google for other users (see below)
+- **Dashboard sign-in:** optional, configurable — env admin + Google out of the box, or your own auth if you fork (see below)
 - **Super Admin Portal (`/dashboard/admin`):** Full multi-tenant user management, role assignments, account suspension, and safe cascading deletion
 - **AES-256-GCM Encrypted Credentials:** Firebase service account JSON is securely encrypted at rest in your D1 database (with zero-downtime fallback migration for legacy R2)
 
@@ -44,7 +44,7 @@ npm install
 npx wrangler login
 ```
 
-Then follow **[DEPLOY.md](./DEPLOY.md)** for D1, auth secrets, migrations, and `npm run deploy` (R2 optional — legacy only).
+Then follow **[DEPLOY.md](./DEPLOY.md)** for D1, migrations, and `npm run deploy` (R2 optional — legacy only). Configure dashboard login when you need it — see **Dashboard sign-in** below.
 
 After deploy:
 
@@ -115,7 +115,11 @@ Monorepo clone (source, not the store): `notify_android_sdk/`, `notify_ios_sdk/`
 
 ## Dashboard sign-in
 
-Two paths — simple by design:
+**Apni zaroorat ke hisaab se:** yeh repo default dashboard auth deta hai (neeche). Production mein secrets se on/off kar sakte ho, ya fork karke Cloudflare Access, SSO, ya apna login flow laga sakte ho — deploy guide auth ko force nahi karti; pehle Worker ship karo, baad mein lock down karo.
+
+**[DEPLOY.md](./DEPLOY.md)** sirf D1 + deploy par focus karti hai. Poori auth checklist (Google OAuth URLs, Wrangler secrets, local `.env`) yahan hai.
+
+Built-in paths — simple by design:
 
 | Who | How |
 |---|---|
@@ -170,7 +174,23 @@ You do **not** need public email/password registration for everyone:
 2. **Super Admin panel:** After you have super-admin access, go to **`/dashboard/admin`** → create users with email + password, assign roles, suspend, or delete. That is the right place to **add** teammates who should not use env admin credentials.
 3. **More env admins:** The login form only accepts the single `ADMIN_EMAIL` / `ADMIN_PASSWORD` pair. For additional fixed admins, use the admin panel or Google — or change env to another owner email (existing Google users are unaffected).
 
-Details and OAuth redirect URLs: **[DEPLOY.md § Authentication](./DEPLOY.md#6-authentication--what-to-put-where)**.
+### Google OAuth (optional — team ke liye)
+
+Google **Continue with Google** ke liye chahiye; sirf `ADMIN_EMAIL` / `ADMIN_PASSWORD` se owner login chal sakta hai.
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → OAuth consent screen (External) → Credentials → **OAuth client ID** → Web application.
+2. **Authorized JavaScript origins:** `http://localhost:3000`, tumhara Worker URL, custom domain (agar hai).
+3. **Authorized redirect URIs** (dono add karo — mismatch par 400 aata hai):
+
+   ```text
+   https://YOUR-ORIGIN/api/auth/google/callback
+   https://YOUR-ORIGIN/api/auth/callback/google
+   ```
+
+   Localhost ke liye bhi same paths with `http://localhost:3000`.
+
+4. Client ID / secret → `npx wrangler secret put GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+5. `BETTER_AUTH_URL` = site origin, trailing slash ke bina (same as `NEXT_PUBLIC_APP_URL`).
 
 ---
 
