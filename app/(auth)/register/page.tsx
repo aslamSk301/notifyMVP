@@ -2,8 +2,7 @@
 
 import Link from 'next/link'
 import { Zap } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { GoogleSignInButton } from '@/components/auth/google-sign-in-button'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function RegisterPage() {
   return (
@@ -20,13 +19,9 @@ export default function RegisterPage() {
           <CardHeader className="pb-4">
             <CardTitle>Create account</CardTitle>
             <CardDescription>
-              New accounts use Google sign-in. Admin can use email and password on the sign-in page
-              (configured in server env).
+              Admin can use email and password on the sign-in page (configured in server env).
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <GoogleSignInButton />
-          </CardContent>
         </Card>
 
         <p className="text-center text-sm text-[var(--muted-foreground)]">

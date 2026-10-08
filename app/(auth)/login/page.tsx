@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { AuthMethodDivider, GoogleSignInButton } from '@/components/auth/google-sign-in-button'
 
 function LoginForm() {
   const router = useRouter()
@@ -61,13 +60,10 @@ function LoginForm() {
         <CardHeader className="pb-4">
           <CardTitle>Sign in</CardTitle>
           <CardDescription>
-            Admin: use the email and password from server env. Everyone else: continue with Google.
+            Admin: use the email and password from server env.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <GoogleSignInButton />
-          <AuthMethodDivider />
-
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
