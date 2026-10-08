@@ -4,8 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { eq, and, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db/client'
-import { projects, users } from '@/lib/db/schema'
+import { baUser, projects } from '@/lib/db/schema'
 import { requireSession } from '@/lib/auth/session'
+import { ensureUsersRow } from '@/lib/auth/ensure-user'
 import { deleteFromR2 } from '@/lib/r2/client'
 import { generateAppId, generateSecureToken } from '@/lib/utils'
 import { encryptText } from '@/lib/crypto/encryption'
@@ -62,14 +63,17 @@ export async function createProject(_prev: unknown, formData: FormData) {
     const db = await getDb()
     const projectId = generateSecureToken(16)
 
-    // Ensure user exists in users table to satisfy foreign keys on production D1
-    try {
-      await db.insert(users).values({
-        id: session.userId,
-        email: session.email,
-        passwordHash: 'better-auth',
-      }).onConflictDoNothing()
-    } catch {}
+    const [authUser] = await db
+      .select({ name: baUser.name })
+      .from(baUser)
+      .where(eq(baUser.id, session.userId))
+      .limit(1)
+
+    await ensureUsersRow(db, {
+      id: session.userId,
+      email: session.email,
+      name: authUser?.name,
+    })
 
     // Handle optional Firebase JSON upload
     const firebaseFile = formData.get('firebaseJson') as File | null
@@ -111,8 +115,17 @@ export async function createProject(_prev: unknown, formData: FormData) {
     revalidatePath('/dashboard/projects')
     return { success: true, project: resultProject }
   } catch (e) {
-    return { error: (e as Error).message }
+    return { error: projectError(e) }
   }
+}
+
+function projectError(e: unknown): string {
+  const err = e instanceof Error ? e : new Error(String(e))
+  const cause = (err as Error & { cause?: unknown }).cause
+  const causeMsg = cause instanceof Error ? cause.message : ''
+  if (err.message && !err.message.startsWith('Failed query:')) return err.message
+  if (causeMsg && !causeMsg.startsWith('Failed query:')) return causeMsg
+  return 'Could not create the project. Please try again.'
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────

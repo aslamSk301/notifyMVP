@@ -20,6 +20,7 @@ import {
   notificationEvents,
 } from '@/lib/db/schema'
 import { requireSuperAdminSession } from '@/lib/auth/session'
+import { ensureUsersRow } from '@/lib/auth/ensure-user'
 import { generateSecureToken } from '@/lib/utils'
 import { deleteFromR2 } from '@/lib/r2/client'
 
@@ -202,7 +203,6 @@ export async function createAdminUser(raw: {
     const accountId = generateSecureToken(16)
     const hashedPassword = await hashPassword(password)
     const now = new Date()
-    const nowIso = now.toISOString()
 
     // 1. Insert into ba_user
     await db.insert(baUser).values({
@@ -228,17 +228,11 @@ export async function createAdminUser(raw: {
       updatedAt: now,
     })
 
-    // 3. Insert into users table for foreign key integrity
-    try {
-      await db.insert(users).values({
-        id: userId,
-        email: normalizedEmail,
-        passwordHash: hashedPassword,
-        createdAt: nowIso,
-      }).onConflictDoNothing()
-    } catch (e) {
-      console.warn('[createAdminUser] users table mirror note:', e)
-    }
+    await ensureUsersRow(db, {
+      id: userId,
+      email: normalizedEmail,
+      name: name.trim(),
+    })
 
     revalidatePath('/dashboard/admin')
     return {

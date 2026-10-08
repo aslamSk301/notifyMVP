@@ -7,6 +7,7 @@ import { timingSafeEqual } from 'crypto'
 import { eq } from 'drizzle-orm'
 import type { Db } from '@/lib/db/client'
 import { baUser, users } from '@/lib/db/schema'
+import { ensureUsersRow } from '@/lib/auth/ensure-user'
 import { generateSecureToken } from '@/lib/utils'
 
 export function getEnvAdminCredentials(cfEnv: Record<string, string> = {}) {
@@ -89,7 +90,6 @@ export async function resolveUserForEnvAdminLogin(
 
   const userId = legacy?.id ?? generateSecureToken(16)
   const now = new Date()
-  const nowIso = now.toISOString()
   const role = isSuperAdminEmail(normalized, cfEnv) ? 'superadmin' : 'admin'
   const name = normalized.split('@')[0] || 'Admin'
 
@@ -105,19 +105,7 @@ export async function resolveUserForEnvAdminLogin(
     updatedAt: now,
   })
 
-  try {
-    await db
-      .insert(users)
-      .values({
-        id: userId,
-        email: normalized,
-        passwordHash: 'env-admin',
-        createdAt: legacy?.createdAt ?? nowIso,
-      })
-      .onConflictDoNothing()
-  } catch {
-    /* optional mirror */
-  }
+  await ensureUsersRow(db, { id: userId, email: normalized, name })
 
   return { userId, email: normalized }
 }
