@@ -7,6 +7,7 @@ import { getDb } from '@/lib/db/client'
 import { baUser, projects } from '@/lib/db/schema'
 import { requireSession } from '@/lib/auth/session'
 import { ensureUsersRow } from '@/lib/auth/ensure-user'
+import { dashboardStatsCacheKey, invalidateReadCache } from '@/lib/cache/read-cache'
 import { deleteFromR2 } from '@/lib/r2/client'
 import { generateAppId, generateSecureToken } from '@/lib/utils'
 import { encryptText } from '@/lib/crypto/encryption'
@@ -113,6 +114,7 @@ export async function createProject(_prev: unknown, formData: FormData) {
     }
 
     revalidatePath('/dashboard/projects')
+    await invalidateReadCache(dashboardStatsCacheKey(session.userId))
     return { success: true, project: resultProject }
   } catch (e) {
     return { error: projectError(e) }
@@ -220,6 +222,7 @@ export async function deleteProject(projectId: string) {
     }
 
     revalidatePath('/dashboard/projects')
+    await invalidateReadCache(dashboardStatsCacheKey(session.userId))
     return { success: true }
   } catch (e) {
     return { error: (e as Error).message }

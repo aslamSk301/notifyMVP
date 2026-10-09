@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { getDb } from '@/lib/db/client'
 import { projects, notifications, topics } from '@/lib/db/schema'
 import { requireSession } from '@/lib/auth/session'
+import { dashboardStatsCacheKey, invalidateReadCache } from '@/lib/cache/read-cache'
 import { sendNotificationCore } from '@/lib/send-notification-core'
 
 const sendSchema = z.object({
@@ -187,6 +188,7 @@ export async function sendNotification(_prev: unknown, formData: FormData) {
       )
 
       revalidatePath('/dashboard/notifications')
+      await invalidateReadCache(dashboardStatsCacheKey(session.userId))
       return { success: true, recipientCount: result.successCount }
     }
 
@@ -206,6 +208,7 @@ export async function sendNotification(_prev: unknown, formData: FormData) {
     if (!result.success) return { error: result.error ?? 'Failed to send notification' }
 
     revalidatePath('/dashboard/notifications')
+    await invalidateReadCache(dashboardStatsCacheKey(session.userId))
     return { success: true, recipientCount: result.recipientCount ?? 0 }
   } catch (e) {
     return { error: (e as Error).message }

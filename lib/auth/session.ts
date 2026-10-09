@@ -3,8 +3,10 @@
  * Server Components, Server Actions, and Route Handlers.
  */
 
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { COOKIE_NAME, verifySessionToken, type SessionPayload } from './jwt'
+import { getCachedJson } from '@/lib/cache/read-cache'
 
 const COOKIE_OPTIONS = {
   httpOnly:  true,
@@ -15,7 +17,7 @@ const COOKIE_OPTIONS = {
 }
 
 /** Get the current session from either Better Auth or legacy JWT cookie. */
-export async function getSession(): Promise<SessionPayload | null> {
+export const getSession = cache(async function getSession(): Promise<SessionPayload | null> {
   // ── 1. Try Better Auth session ────────────────────────────────────────────
   try {
     const { getAuth } = await import('@/lib/auth')
@@ -47,7 +49,7 @@ export async function getSession(): Promise<SessionPayload | null> {
   } catch {
     return null
   }
-}
+})
 
 /** Set the legacy session cookie (used by email/password login action) */
 export async function setSessionCookie(token: string): Promise<void> {
@@ -99,25 +101,26 @@ export async function isSuperAdmin(email?: string | null): Promise<boolean> {
     return true
   }
 
-  // 2. Check database role in ba_user
+  // 2. Check database role in ba_user. Cached so every dashboard refresh
+  // does not read ba_user again. Role changes show up within a minute.
   try {
-    const { getDb } = await import('@/lib/db/client')
-    const { baUser } = await import('@/lib/db/schema')
-    const { eq } = await import('drizzle-orm')
+    return await getCachedJson(`superadmin:${normalized}`, 60, async () => {
+      const { getDb } = await import('@/lib/db/client')
+      const { baUser } = await import('@/lib/db/schema')
+      const { eq } = await import('drizzle-orm')
 
-    const db = await getDb()
-    const [user] = await db
-      .select({ role: baUser.role })
-      .from(baUser)
-      .where(eq(baUser.email, normalized))
-      .limit(1)
+      const db = await getDb()
+      const [user] = await db
+        .select({ role: baUser.role })
+        .from(baUser)
+        .where(eq(baUser.email, normalized))
+        .limit(1)
 
-    if (user?.role === 'superadmin' || user?.role === 'admin') {
-      return true
-    }
-  } catch {}
-
-  return false
+      return user?.role === 'superadmin' || user?.role === 'admin'
+    })
+  } catch {
+    return false
+  }
 }
 
 /** Get session and ensure Super Admin access or throw */

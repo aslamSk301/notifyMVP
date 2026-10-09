@@ -1,47 +1,53 @@
-import { eq, inArray, and } from 'drizzle-orm'
+import { count, eq, inArray, and } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { projects, devices, notifications } from '@/lib/db/schema'
 import { getSession } from '@/lib/auth/session'
+import { dashboardStatsCacheKey, getCachedJson } from '@/lib/cache/read-cache'
 import { redirect } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { FolderOpen, Bell, Smartphone, Activity } from 'lucide-react'
 import Link from 'next/link'
 
+const EMPTY_STATS = { projectCount: 0, notificationCount: 0, deviceCount: 0, sentCount: 0 }
+const STATS_TTL_SECONDS = 60
+
+async function loadDashboardStats(userId: string) {
+  const db = await getDb()
+
+  const userProjects = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.userId, userId))
+
+  const projectIds = userProjects.map((p) => p.id)
+  if (projectIds.length === 0) return EMPTY_STATS
+
+  const projectFilter = inArray(notifications.projectId, projectIds)
+  const [notificationRow, sentRow, deviceRow] = await Promise.all([
+    db.select({ value: count() }).from(notifications).where(projectFilter),
+    db
+      .select({ value: count() })
+      .from(notifications)
+      .where(and(projectFilter, inArray(notifications.status, ['sent', 'completed']))),
+    db.select({ value: count() }).from(devices).where(inArray(devices.projectId, projectIds)),
+  ])
+
+  return {
+    projectCount: userProjects.length,
+    notificationCount: Number(notificationRow[0]?.value ?? 0),
+    sentCount: Number(sentRow[0]?.value ?? 0),
+    deviceCount: Number(deviceRow[0]?.value ?? 0),
+  }
+}
+
 async function getDashboardStats(userId: string) {
   try {
-    const db = await getDb()
-
-    // Step 1 — user's projects
-    const userProjects = await db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(eq(projects.userId, userId))
-
-    const projectIds = userProjects.map((p) => p.id)
-
-    if (projectIds.length === 0) {
-      return { projectCount: 0, notificationCount: 0, deviceCount: 0, sentCount: 0 }
-    }
-
-    // Step 2 — counts via project IDs
-    const [allNotifications, allDevices] = await Promise.all([
-      db.select({ status: notifications.status })
-        .from(notifications)
-        .where(inArray(notifications.projectId, projectIds)),
-      db.select({ id: devices.id })
-        .from(devices)
-        .where(inArray(devices.projectId, projectIds)),
-    ])
-
-    return {
-      projectCount:      userProjects.length,
-      notificationCount: allNotifications.length,
-      sentCount:         allNotifications.filter((n) => n.status === 'sent' || n.status === 'completed').length,
-      deviceCount:       allDevices.length,
-    }
+    return await getCachedJson(dashboardStatsCacheKey(userId), STATS_TTL_SECONDS, () =>
+      loadDashboardStats(userId)
+    )
   } catch (err) {
     console.error('[Dashboard] Failed to load stats:', err)
-    return { projectCount: 0, notificationCount: 0, deviceCount: 0, sentCount: 0 }
+    return EMPTY_STATS
   }
 }
 
