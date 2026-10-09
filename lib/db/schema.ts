@@ -82,6 +82,7 @@ export const projects = sqliteTable('projects', {
 }, (t) => ({
   userIdIdx: index('projects_user_id_idx').on(t.userId),
   appIdIdx:  index('projects_app_id_idx').on(t.appId),
+  apiKeyIdx: uniqueIndex('projects_api_key_idx').on(t.apiKey),
 }))
 
 // ── Device Subscriptions (OneSignal Parity) ──────────────────────────────────
@@ -213,7 +214,8 @@ export const notificationCampaigns = sqliteTable('notification_campaigns', {
   updatedAt:    text('updated_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => ({
   projectIdIdx: index('campaigns_project_id_idx').on(t.projectId),
-  statusIdx:    index('campaigns_status_idx').on(t.status),
+  projectCreatedIdx: index('notification_campaigns_project_created_idx').on(t.projectId, t.createdAt),
+  projectStatusIdx: index('notification_campaigns_project_status_idx').on(t.projectId, t.status),
 }))
 
 // Backward compatibility alias

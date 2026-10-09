@@ -137,6 +137,7 @@ npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0007_fix_devices_mi
 npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0008_better_auth_tables.sql
 npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0009_super_admin_roles.sql
 npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0010_encrypted_firebase_credentials.sql
+npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0011_hot_path_indexes.sql
 ```
 
 `0008` creates auth tables (`ba_user`, `ba_session`, `ba_account`, `ba_verification`) used by the built-in dashboard login. Skip only if you replace dashboard auth entirely in your fork.
@@ -144,6 +145,8 @@ npx wrangler d1 execute notifymvp-db --remote --file=drizzle/0010_encrypted_fire
 `0009` adds `role` and `status` on `ba_user` (needed for `/dashboard/admin`). It also sets `contact.earnslash@gmail.com` to `superadmin` — change that email in the SQL file before you run it on your own account.
 
 `0010` adds `projects.firebase_credentials`. **Create project fails without it** (the insert includes that column). Firebase JSON uploads are stored here, encrypted.
+
+`0011` adds indexes for API-key lookup, campaign lists, active devices, and log lookups. The app still works without it. Run it so dashboard and API reads do not scan the whole table. `CREATE INDEX IF NOT EXISTS` is safe to re-run.
 
 **Already deployed?** Do not start over. Apply only the files you have not run — see **[DB_MIGRATE.md](./DB_MIGRATE.md)**. Create project fails with `Failed query: insert into "projects" ... firebase_credentials` until `0010` is applied.
 
@@ -385,7 +388,7 @@ Apply the same SQL files locally with `--local` if you use local D1.
 - [ ] Database `notifymvp-db` created
 - [ ] `database_id` in `wrangler.jsonc`
 - [ ] Binding name `DB`
-- [ ] Migrations `0000` … `0010` applied `--remote` (`0010` = `projects.firebase_credentials`)
+- [ ] Migrations `0000` … `0011` applied `--remote` (`0010` = `projects.firebase_credentials`, `0011` = read indexes)
 
 **R2 (optional — legacy only)**
 
