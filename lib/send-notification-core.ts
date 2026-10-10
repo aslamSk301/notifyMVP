@@ -5,9 +5,9 @@
  * Segments and explicit token lists still walk D1.
  */
 
-import { eq, and, or, inArray, sql } from 'drizzle-orm'
+import { eq, and, or, inArray } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
-import { projects, devices, notifications, topics, deviceTopics } from '@/lib/db/schema'
+import { projects, devices, notifications } from '@/lib/db/schema'
 import { getProjectCredentials } from '@/lib/firebase/credentials-loader'
 import {
   sendMulticastNotification,
@@ -36,29 +36,6 @@ export interface SendNotificationOptions {
   data?: Record<string, string>
   saveToDb?: boolean
   tokens?: string[]
-}
-
-async function estimateTopicSubscribers(projectId: string, topicName: string): Promise<number> {
-  const db = await getDb()
-  const [topicRow] = await db
-    .select({ id: topics.id })
-    .from(topics)
-    .where(and(eq(topics.projectId, projectId), eq(topics.name, topicName)))
-    .limit(1)
-
-  if (!topicRow) {
-    const [row] = await db
-      .select({ n: sql<number>`count(*)` })
-      .from(devices)
-      .where(and(eq(devices.projectId, projectId), eq(devices.status, 'active')))
-    return Number(row?.n ?? 0)
-  }
-
-  const [row] = await db
-    .select({ n: sql<number>`count(*)` })
-    .from(deviceTopics)
-    .where(eq(deviceTopics.topicId, topicRow.id))
-  return Number(row?.n ?? 0)
 }
 
 /**
@@ -170,7 +147,9 @@ export async function sendNotificationCore(
           notificationId: shouldSaveToDb ? notificationId : undefined,
         }
       }
-      successCount = await estimateTopicSubscribers(projectId, audience.topic)
+      // FCM topic delivery does not need a subscriber count. Counting devices
+      // or device_topics here scanned D1 on every country-topic send.
+      successCount = 0
       finalStatus = 'completed'
     } else if (audience.kind === 'segment') {
       const targetDevices = await querySegmentDeviceTokens(projectId, audience.segmentId)
